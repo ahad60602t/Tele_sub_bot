@@ -1,3 +1,4 @@
+
 import sqlite3
 import os
 import time
@@ -7,7 +8,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 load_dotenv()
 
-# Get your credentials from .env file
+# Get credentials from .env file
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -83,6 +84,27 @@ def get_pending_users():
         users = cursor.fetchall()
         return users
 
+# Admin Tools
+async def post_maker(bot, message):
+    await message.reply_text("Please send the post content:")
+    @app.on_message(filters.private & filters.text)
+    async def process_post(bot, message):
+        if message.text.startswith("/"): return  # Skip commands
+        await bot.send_message(message.chat.id, f"📝 Post Created: {message.text}")
+
+async def poll_maker(bot, message):
+    await message.reply_text("Please send the poll question and options in this format:\n\n`Question | Option1, Option2, Option3`")
+    
+    @app.on_message(filters.private & filters.text)
+    async def process_poll(bot, message):
+        if message.text.startswith("/"): return  # Skip commands
+        try:
+            question, options = message.text.split('|')
+            options = options.split(',')
+            await bot.send_poll(chat_id=message.chat.id, question=question.strip(), options=[opt.strip() for opt in options])
+        except ValueError:
+            await message.reply_text("❌ Invalid format. Use `Question | Option1, Option2, Option3`.")
+
 # Command Handlers
 
 @app.on_message(filters.command("start"))
@@ -102,12 +124,11 @@ async def admin_login(bot, message):
 
 @app.on_message(filters.private & filters.text)
 async def validate_admin(bot, message):
-    if message.text.startswith("/"):  # Skip commands
-        return
+    if message.text.startswith("/"): return  # Skip commands
 
     password = message.text
     if check_admin_password(password):
-        await message.reply_text("✅ Admin access granted. Use /admin_panel to manage users.")
+        await message.reply_text("✅ Admin access granted. Use /admin_panel to manage users and access tools.")
     else:
         await message.reply_text("❌ Invalid password. Please try again.")
 
@@ -117,8 +138,7 @@ async def register_user(bot, message):
 
 @app.on_message(filters.private & filters.text)
 async def process_registration(bot, message):
-    if message.text.startswith("/"):  # Skip commands
-        return
+    if message.text.startswith("/"): return  # Skip commands
 
     try:
         email, password = message.text.split()
@@ -132,8 +152,7 @@ async def process_registration(bot, message):
 async def request_permission(bot, message):
     if not is_approved(message.from_user.id):
         await message.reply_text("⏳ Your request for admin approval has been sent. Please wait for approval.")
-        # Notify admin (You can change this to your admin's chat ID)
-        admin_chat_id = 123456789  # Replace with the actual admin chat ID
+        admin_chat_id = 6441392640  # Replace with actual admin chat ID
         await bot.send_message(admin_chat_id, f"User {message.from_user.id} has requested permission to access the channel.")
     else:
         await message.reply_text("✅ You are already approved.")
@@ -144,8 +163,7 @@ async def user_login(bot, message):
 
 @app.on_message(filters.private & filters.text)
 async def process_login(bot, message):
-    if message.text.startswith("/"):  # Skip commands
-        return
+    if message.text.startswith("/"): return  # Skip commands
 
     try:
         email, password = message.text.split()
@@ -171,6 +189,9 @@ async def admin_panel(bot, message):
         reply_markup=InlineKeyboardMarkup(
             [
                 [InlineKeyboardButton("Approve Users", callback_data="approve_users")],
+                [InlineKeyboardButton("Poll Maker", callback_data="poll_maker")],
+                [InlineKeyboardButton("Post Maker", callback_data="post_maker")],
+                [InlineKeyboardButton("Manage Channels", callback_data="manage_channels")],
                 [InlineKeyboardButton("Logout", callback_data="admin_logout")]
             ]
         )
@@ -203,5 +224,13 @@ async def approve_user(bot, query):
     await query.answer(f"User {user_id} approved.")
     await query.message.delete()
 
-# Run the bot
-app.run()
+@app.on_callback_query(filters.regex("poll_maker"))
+async def poll_maker_callback(bot, query):
+    await poll_maker(bot, query.message)
+
+@app.on_callback_query(filters.regex("post_maker"))
+async def post_maker_callback(bot, query):
+    await post_maker(bot, query.message)
+
+# Channel Management
+
